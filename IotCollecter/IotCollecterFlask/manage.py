@@ -115,7 +115,7 @@ def uploadLocation():
     db = pymysql.connect("localhost","root","123456","iotcollecter" )
     cursor = db.cursor()
     date1 = datetime.datetime.now()
-    sql1 = "select id,UNIX_TIMESTAMP(update_time) from location where userName = " + request.form.get('user_name') + "' order by id desc limit 1"
+    sql1 = "select id,UNIX_TIMESTAMP(updateTime) from location where userName = '" + request.form.get('user_name') + "' order by id desc limit 1"
     cursor.execute(sql1)
     r1 = cursor.fetchall()
     dateMysql = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S');
@@ -146,9 +146,9 @@ def uploadStep():
     # print(dateMysql)
     today = date.today().strftime("%Y-%m-%d")
     # print(today)
-    sql2 = "delete from step where userName = " + request.form.get('user_name') + "', and updateTime > '" + today + "'"
+    sql2 = "delete from step where userName = '" + request.form.get('user_name') + "', and updateTime > '" + today + "'"
     # print(sql2)
-    sql = "insert into stepof (userName, updateTime, stepSum, stepToday) values ('" + request.form.get('user_name') + "', '" + dateMysql + "', '" + request.form.get('step_sum') + "', '" + request.form.get('step_today') + "')"
+    sql = "insert into step (userName, updateTime, stepSum, stepToday) values ('" + request.form.get('user_name') + "', '" + dateMysql + "', '" + request.form.get('step_sum') + "', '" + request.form.get('step_today') + "')"
     try:
         cursor.execute(sql2)
         db.commit()
@@ -173,7 +173,7 @@ def getStepOfYesterday():
     today = date.today().strftime("%Y-%m-%d")
     # print(yesterday)
     # print(today)
-    sql = "select stepSum from step where userName = " + request.form.get('user_name') + "', and updateTime < '" + today + "'" + "order by id desc"
+    sql = "select stepSum from step where userName = '" + request.form.get('user_name') + "', and updateTime < '" + today + "'" + "order by id desc"
     try:
         print("1114444444444")
         # print(sql)
@@ -195,7 +195,7 @@ def getLastUploadtime():
     db = pymysql.connect("localhost", "root", "123456", "iotcollecter")
     cursor = db.cursor()
     today = date.today().strftime("%Y-%m-%d")
-    sql = "select UNIX_TIMESTAMP(update_time) from step where userName = " + request.form.get('user_name') + "' and updateTime < '" + today + "'" + "order by update_time desc limit 1"
+    sql = "select UNIX_TIMESTAMP(updateTime) from step where userName = '" + request.form.get('user_name') + "' and updateTime < '" + today + "'" + "order by update_time desc limit 1"
     try:
         cursor.execute(sql)
         i = cursor.fetchall();
