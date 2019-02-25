@@ -1,50 +1,123 @@
-from flask_sqlalchemy import SQLAlchemy
-from flask import Flask
+from sqlalchemy import Column, Integer, String, DATE, ForeignKey, DateTime, func, Table
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, relationship
 
-app = Flask(__name__)
+engine = create_engine("mysql+pymysql://root:123456@localhost/iotplatformofcnlab", encoding='utf-8', echo=True)
+base = declarative_base()
+Session_class = sessionmaker(bind=engine)  # 创建与数据库的会话，class,不是实例
+Session = Session_class()
+PAGE_SIZE = 30
 
-app.config['SQLALCHEMY_DATABASE_URI']='mysql+pymysql://root:123456@127.0.0.1:3306/iotplatformofcnlab'
-app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN']=True
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-iotpdb = SQLAlchemy(app)
+# 创建grouping表，关联group和user表
+Grouping = Table('grouping', base.metadata,
+                 Column('userID',Integer,ForeignKey('user.id')),
+                 Column('groupID',Integer,ForeignKey('group.id')),
+                 Column('createTime', DateTime, server_default=func.now()),
+                 Column('updateTime', DateTime, server_default=func.now(), onupdate=func.now())
+                 )
 
-class user(userdb.Model):
+
+class User(base):
     __tablename__ = 'user'
-    user_id = userdb.Column(userdb.Integer, primary_key=True)  # primary_key会自动填充
-    user_name = userdb.Column(userdb.String(40))
-    password = userdb.Column(userdb.String(50))
-    sex = userdb.Column(userdb.String(4))
-    birthday = userdb.Column(userdb.Date)
-    phone_model = userdb.Column(userdb.String(40))
-    cpu_model = userdb.Column(userdb.String(100))
-    memory_size = userdb.Column(userdb.Integer)
-    battery_size = userdb.Column(userdb.Float)
-    storage_size = userdb.Column(userdb.String(10))
+    id = Column(Integer, primary_key=True)
+    username = Column(String(64))
+    name = Column(String(64))
+    password = Column(String(64))
+    sex = Column(Integer)
+    birthday = Column(DATE)
+    createTime = Column(DateTime, server_default=func.now())
+    updateTime = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    groups = relationship('Group', secondary=Grouping, backref='users')
 
-@app.route('/usershow')
-def usershow():
-    ret = userdb.session.query(user).all()
-    print(ret[0].user_name)
-    print("4444444444")
-    return ret[0].user_name
 
-@app.route('/useradd')
-def useradd():
-    addTest = user( user_name = "akg", password = "444")
-    userdb.session.add(addTest)
-    userdb.session.commit()
-    return '0'
+    def to_json(self):
+        return {
+            "username": self.username,
+            "name": self.name,
+            "sex": 'male' if self.sex else 'female',
+            "birthday": self.birthday,
+            "createTime": self.createTime,
+            "updateTime": self.updateTime,
+            "groups": [e.groupname for e in self.groups],
+        }
 
-@app.route('/userdelete')
-def userdelete():
-    userdb.session.query(user).filter( user.user_name == "akg").delete();
-    userdb.session.commit()
-    return '0'
 
-@app.route('/useralter')
-def useralter():
-    userdb.session.query(user).filter(user.user_name == "akg").update({"password" : "111", "phone_model" : "1"})
-    return '0'
+class Group(base):
+    __tablename__ = 'group'
+    id = Column(Integer, primary_key=True)
+    groupname = Column(String(32))
+    description = Column(String(128))
+    createTime = Column(DateTime, server_default=func.now())
+    updateTime = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0",debug=True)
+    def to_json(self):
+        return {
+            "groupname": self.groupname,
+            "description": self.description,
+            "createTime": self.createTime,
+            "updateTime": self.updateTime
+        }
+
+    def to_json_detail(self):
+        return {
+            "groupname": self.groupname,
+            "description": self.description,
+            "createTime": self.createTime,
+            "updateTime": self.updateTime,
+            "users": [e.to_json() for e in self.users]
+        }
+
+
+def createall():
+    base.metadata.drop_all(engine);
+    base.metadata.create_all(engine)  # 创建表结构
+
+#The following: operations in user
+def AddAUser(username, name, password, sex, birthday):
+    Session.add(User(username = username, name= name, password = password, sex = sex, birthday = birthday))
+    Session.commit()
+
+def DeleteAUser(username):
+    Session.query(User).filter(username = username).delete()
+    Session.commit()
+
+def SetPassword(username, newPassword):
+    Session.query(User).filter(username = username).update({"password" : newPassword})
+    Session.commit();
+
+def ShowUser(username):
+    result = Session.query(User).filter_by(username = username).all()
+    return [e.to_json(len(result)) for e in result]
+
+def ShowUsers(page = 0):
+    result = Session.query(User).limit(PAGE_SIZE).offset((page)*PAGE_SIZE)
+    return [e.to_json() for e in result]
+
+def getGroupListByNameList(nameList):
+    return Session.query(Group).filter(Group.groupname.in_(nameList)).all()
+
+def AddGroupToUser(username, groupNameList):
+    Session.query(User).filter_by(username=username).first().groups = getGroupListByNameList(groupNameList)
+    Session.commit()
+
+#following: operations in group
+def AddAGroup(groupname, description):
+    Session.add(Group(groupname = groupname, description = description))
+    Session.commit()
+
+def DeleteAGroup(groupname):
+    Session.query(Group).filter(groupname = groupname).delete()
+    Session.commit()
+
+def SetDescription(groupname, newDescription):
+    Session.query(Group).filter(groupname = groupname).update({"description" : newDescription})
+    Session.commit();
+
+def ShowGroup(groupname):
+    result = Session.query(Group).filter_by(groupname = groupname).all()
+    return [e.to_json_detail() for e in result]
+
+def ShowGroups(page = 0):
+    result = Session.query(Group).limit(PAGE_SIZE).offset((page)*PAGE_SIZE)
+    return [e.to_json() for e in result]

@@ -1,45 +1,49 @@
 from flask import Flask
 from flask_restful import Api, Resource, reqparse, abort
+from datetime import date
+import db
+
 
 app = Flask(__name__)
 api = Api(app)
 
-USER_LIST = {
-    1: {'name':'Michael'},
-    2: {'name':'Tom'},
-}
 
 parser = reqparse.RequestParser()
-parser.add_argument('name', type=str)
+parser.add_argument('username', type=str).add_argument('name', type=str).add_argument('password', type=str).add_argument('sex', type=int).add_argument('birthday', type=date)
+parser.add_argument('groupname', type=str).add_argument('description', type=str)
+parser.add_argument('page', type=int)
 
-def abort_if_not_exist(userID):
-    if userID not in USER_LIST:
-        abort(404, message="User {} doesn't exist".format(userID))
+
+def abort_if_not_exist(username):
+    if len(db.ShowUser("username"))==0:
+        abort(404, message="User {} doesn't exist".format(username))
+
 
 class User(Resource):
-    def get(self, userID):#查询信息
-        abort_if_not_exist(userID)
-        #从数据库查询相关信息
-        return USER_LIST[userID]
+    def get(self, username):#查询信息
+        abort_if_not_exist(username)
+        return db.ShowUser(username)
 
-    def delete(self, userID):#删除信息
-        abort_if_not_exist(userID)
-        #从数据库删除相关信息
+    def delete(self, username):#删除信息
+        abort_if_not_exist(username)
+        db.DeleteAUser(username)
         return '', 204
 
-    def put(self, userID):#注册
+    def put(self, username):#修改密码
         args = parser.parse_args(strict=True)
-        #将args['username']}等信息存入数据库
-        return USER_LIST[userID], 201#返回信息
+        db.SetPassword(username,args['password'])
+        return [], 201#返回信息
     
-    def post(self, userID):#修改信息
+    def post(self, username):#注册
         args = parser.parse_args(strict=True)
-        # 将args['username']}等信息修改入数据库
-        return USER_LIST[userID], 201#返回信息
+        db.AddAUser(username, args['name'], args['password'], args['sex'], args['birthday'])
+        return db.ShowUser(username), 201#返回信息
+
 
 class UserList(Resource):#用于管理员查看用户列表，后续可添加批量新增、删除用户的功能
     def get(self):
-        return USER_LIST#从数据库返回用户列表，分页
+        args = parser.parse_args(strict=True)
+        return [len(db.ShowUsers(args['page']))] + db.ShowUsers(args['page'])
 
     # def post(self):
     #     args = parser.parse_args(strict=True)
@@ -47,19 +51,22 @@ class UserList(Resource):#用于管理员查看用户列表，后续可添加批
     #     USER_LIST[userID] = {'name': args['name']}
     #     return USER_LIST[userID], 201
 
-class Login(Resource):#用于管理员查看用户列表，后续可添加批量新增、删除用户的功能
+
+class Login(Resource):#用户登录
     def get(self):
         args = parser.parse_args(strict=True)
-        userID = args['userID']
+        username = args['username']
         password = args['password']
         if(1):#判断用户名密码是否匹配
             return '1'#返回相应的token
         else:
             return '用户名或密码错误'
 
+
 api.add_resource(UserList, '/users')
-api.add_resource(User, '/users/<str:userID>')
+api.add_resource(User, '/users/<str:username>')
 api.add_resource(Login, '/users/login')
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
